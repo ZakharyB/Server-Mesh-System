@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesh Network Control Center</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max_width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 24px; }
+        .btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-2px); }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .online { background-color: var(--success); box-shadow: 0 0 10px var(--success); }
+        .offline { background-color: var(--danger); }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            font-size: 14px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background-color: #334155;
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: var(--accent);
+            transition: width 0.5s ease;
+        }
+        .loader { text-align: center; color: var(--text-secondary); margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Server Mesh Orchestrator</h1>
+                <span style="color: var(--text-secondary); font-size: 14px;">Real-time Node Monitoring</span>
+            </div>
+            <button class="btn" onclick="fetchData()">Refresh Now</button>
+        </header>
+
+        <div id="mesh-grid" class="grid">
+            <div class="loader">Loading Mesh Data...</div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/mesh-status');
+                const data = await response.json();
+                renderMesh(data);
+            } catch (error) {
+                console.error('Error fetching mesh data:', error);
+            }
+        }
+
+        function renderMesh(nodes) {
+            const grid = document.getElementById('mesh-grid');
+            grid.innerHTML = '';
+
+            nodes.forEach(node => {
+                const isOnline = node.status === 'Online';
+                const usagePercent = isOnline ? (node.current_users / node.max_users) * 100 : 0;
+                
+                let usageColor = 'var(--success)';
+                if(usagePercent > 50) usageColor = '#facc15'; 
+                if(usagePercent > 80) usageColor = 'var(--danger)';
+
+                const html = `
+                    <div class="card" style="border-left: 4px solid ${isOnline ? 'var(--success)' : 'var(--danger)'}">
+                        <div class="card-header">
+                            <h3 style="margin:0">${node.name}</h3>
+                            <span class="status-dot ${isOnline ? 'online' : 'offline'}"></span>
+                        </div>
+                        <div style="color: var(--text-secondary); font-size: 12px; margin-bottom: 15px;">
+                            ${node.url}
+                        </div>
+                        
+                        ${isOnline ? `
+                            <div class="stat-row">
+                                <span>Region</span>
+                                <span>${node.region}</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Latency (Ping)</span>
+                                <span>${node.ping} ms</span>
+                            </div>
+                            <div class="stat-row">
+                                <span>Load (CPU/RAM)</span>
+                                <span>${node.cpu_load}% / ${node.ram_usage}%</span>
+                            </div>
+                            <div class="stat-row" style="margin-top: 15px;">
+                                <span>Capacity (${node.current_users}/${node.max_users})</span>
+                                <span>${Math.round(usagePercent)}%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${usagePercent}%; background-color: ${usageColor}"></div>
+                            </div>
+                        ` : `
+                            <div style="text-align: center; color: var(--danger); padding: 20px;">
+                                CONNECTION LOST
+                            </div>
+                        `}
+                    </div>
+                `;
+                grid.innerHTML += html;
+            });
+        }
+
+        fetchData();
+        setInterval(fetchData, 3000); 
+    </script>
+</body>
+</html>
