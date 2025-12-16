@@ -9,8 +9,8 @@ CORS(app)
 
 NODES = [
     {"ip": "127.0.0.1", "port": 8080, "name": "Master-Node-Backup"}, 
-    {"ip": "192.168.56.1", "port": 5001, "name": "Worker-PC-1"},
-    {"ip": "192.168.1.16", "port": 80, "name": "Worker-PC-2"}
+    {"ip": "192.168.56.1", "port": 5001, "name": "Montr\xE9al-NODE-825"},
+    {"ip": "10.251.114.117", "port": 5002, "name": "Worker-PC-2"}
 ]
 
 SERVER_STATUS = {}

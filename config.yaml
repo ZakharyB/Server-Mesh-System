@@ -1,4 +1,4 @@
-max_users: 998
+max_users: 844
 port: 5001
-region: NAE
-server_name: EN_NODE_001
+region: NA-EAST
+server_name: "Montr\xE9al-NODE-630"
