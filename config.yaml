@@ -1,0 +1,4 @@
+max_users: 998
+port: 5001
+region: NAE
+server_name: EN_NODE_001

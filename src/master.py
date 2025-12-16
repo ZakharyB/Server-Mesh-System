@@ -136,6 +136,5 @@ if __name__ == "__main__":
     t.daemon = True
     t.start()
     
-    # Run on Port 80 for Cloudflare
   #  app.run(host="0.0.0.0", port=80, threaded=True) 
     app.run(host="0.0.0.0", port=80, threaded=True)

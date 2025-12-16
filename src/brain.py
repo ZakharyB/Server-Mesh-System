@@ -9,7 +9,7 @@ CORS(app)
 
 NODES = [
     {"ip": "127.0.0.1", "port": 8080, "name": "Master-Node-Backup"}, 
-    {"ip": "192.168.1.15", "port": 80, "name": "Worker-PC-1"},
+    {"ip": "192.168.56.1", "port": 5001, "name": "Worker-PC-1"},
     {"ip": "192.168.1.16", "port": 80, "name": "Worker-PC-2"}
 ]
 
@@ -20,8 +20,9 @@ def monitor_mesh():
         for node in NODES:
             try:
                 start = time.time()
-                url = f"http://{node['ip']}:{node['port']}/status.php"
-                
+                # url = f"http://{node['ip']}:{node['port']}/status.php"
+                url = f"http://{node['ip']}:{node['port']}/stats"  
+
                 r = requests.get(url, timeout=2)
                 latency = round((time.time() - start) * 1000, 2)
                 
