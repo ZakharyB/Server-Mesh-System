@@ -20,6 +20,39 @@ CONFIG_PATH = "config.yaml"
 config = {}
 current_users = 0
 
+def get_cpu_temp():
+    """Attempts to read CPU temperature. Works best on Linux/macOS. 
+    Windows often requires WMI or Admin rights."""
+    try:
+        temps = psutil.sensors_temperatures()
+        if not temps: return None
+        for name, entries in temps.items():
+            for entry in entries:
+                if entry.current > 0: return entry.current
+    except:
+        return None 
+    return None
+
+def get_location():
+    """Gets approximate location for the 3D Globe"""
+    try:
+        r = requests.get('http://ip-api.com/json/', timeout=3)
+        data = r.json()
+        return {
+            "lat": data.get("lat", 0.0), 
+            "lon": data.get("lon", 0.0),
+            "city": data.get("city", "Unknown")
+        }
+    except:
+        return {"lat": 0.0, "lon": 0.0, "city": "Unknown"}
+
+def estimate_power_usage(cpu_percent):
+    """Crude estimation: Idle (30W) + Max Load (100W)"""
+    TDP = 105 # Watts
+    IDLE = 30 # Watts
+    watts = IDLE + ((cpu_percent / 100) * (TDP - IDLE))
+    return round(watts, 1)
+
 def detect_city_name():
     try:
         g = geocoder.ip('me')
@@ -35,6 +68,7 @@ def detect_city_name():
     except:
         pass
     return "UNKNOWN"
+
 def detect_region():
     system = platform.system()
     try:
@@ -125,7 +159,7 @@ def benchmark_max_users():
 
 
         print("Benchmarking disk I/O...")
-        test_file = "/tmp/io_bench.tmp"
+        test_file = "io_bench.tmp"
         test_size_mb = 50
 
         start = time.time()
@@ -220,7 +254,7 @@ def benchmark_max_users():
             download_kbps = download_mbps * 125
             upload_kbps = upload_mbps * 125
 
-            user_bw_kbps = 
+            user_bw_kbps = 3
             net_capacity = int(
                 ((upload_kbps * 5 + download_kbps) / 6) / user_bw_kbps * 0.8
             )
@@ -235,7 +269,7 @@ def benchmark_max_users():
 
 
         print("Benchmarking disk I/O...")
-        test_file = "/tmp/io_bench.tmp"
+        test_file = "io_bench.tmp"
         test_size_mb = 50
 
         start = time.time()
@@ -326,7 +360,7 @@ def benchmark_max_users():
             metrics['network_capacity'] = weighted_net_capacity
         
         print("Benchmarking disk...")
-        test_file = '/tmp/io_bench.tmp'
+        test_file = 'io_bench.tmp'
         test_size_mb = 50
         
         start = time.time()
@@ -359,7 +393,8 @@ def create_config():
         "server_name": f"{city}-NODE-{int(time.time()) % 1000}",
         "region": region,
         "max_users": max_users,
-        "port": 5001 
+        "port": 5001,
+        "location": get_location() 
     }
 
     with open(CONFIG_PATH, "w") as f:
@@ -386,13 +421,18 @@ def load_config():
 
 @app.route('/stats', methods=['GET'])
 def get_stats():
+    cpu_load = psutil.cpu_percent(interval=None)
+    
     return jsonify({
         "name": config["server_name"],
         "region": config["region"],
         "max_users": config["max_users"],
         "current_users": current_users,
-        "cpu_load": psutil.cpu_percent(interval=None),
+        "cpu_load": cpu_load,
         "ram_usage": psutil.virtual_memory().percent,
+        "temp": get_cpu_temp(),
+        "watts": estimate_power_usage(cpu_load),
+        "location": config.get("location"),
         "status": "online"
     })
 

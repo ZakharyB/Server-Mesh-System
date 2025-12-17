@@ -1,4 +1,8 @@
-max_users: 844
+location:
+  city: Joliette
+  lat: 46.0166
+  lon: -73.4483
+max_users: 710
 port: 5001
 region: NA-EAST
-server_name: "Montr\xE9al-NODE-630"
+server_name: "Montr\xE9al-NODE-660"

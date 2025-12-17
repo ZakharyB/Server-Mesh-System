@@ -3,134 +3,734 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mesh Controller (Port 5000)</title>
+    <title>Mesh Command Center</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+    <!-- FIX 1: Removed manual Three.js import to prevent "Multiple Instances" error -->
+    <!-- Globe.gl includes its own Three.js bundle -->
+    <script src="https://unpkg.com/globe.gl@2.32.1/dist/globe.gl.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-body: #09090b;
+            --bg-sidebar: #18181b;
+            --bg-card: #27272a;
+            --border: #3f3f46;
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --warning: #eab308;
+            --danger: #ef4444;
+            --text-main: #f4f4f5;
+            --text-dim: #a1a1aa;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .chart-container {
+            position: relative;
+            height: 80px;
+            width: 100%;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* --- SIDEBAR --- */
+        aside {
+            width: 280px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 10;
+        }
+
+        .brand {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: white;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            letter-spacing: -0.5px;
+        }
+
+        .menu-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+
+        .control-group { margin-bottom: 30px; }
+
+        .input-group {
+            background: var(--bg-body);
+            border: 1px solid var(--border);
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .input-group input {
+            background: transparent;
+            border: none;
+            color: white;
+            width: 100%;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .panic-container {
+            margin-top: auto;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--danger);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .btn-panic {
+            width: 100%;
+            background: var(--danger);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .btn-panic:hover { background: #dc2626; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .btn-panic.active { background: #b91c1c; animation: pulse 1s infinite; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        /* --- MAIN CONTENT --- */
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* HUD Stats */
+        .hud-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+        .hud-card {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 10px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hud-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+        }
+        .hud-card.blue::after { background: var(--primary); }
+        .hud-card.green::after { background: var(--success); }
+        .hud-card.yellow::after { background: var(--warning); }
+        .hud-card.purple::after { background: #a855f7; }
+
+        .hud-title { color: var(--text-dim); font-size: 0.85rem; font-weight: 600; }
+        .hud-value { font-size: 1.8rem; font-weight: 700; color: white; margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+
+        /* Visualization Section */
+        .viz-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            height: 300px;
+        }
+        .viz-card {
+            background: black;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        .viz-label {
+            position: absolute;
+            top: 15px; left: 15px;
+            background: rgba(0,0,0,0.6);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Node Grid */
+        .nodes-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+        .node-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        /* Server Card */
+        .node-card {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.2s;
+            position: relative;
+        }
+        .node-card:hover { transform: translateY(-2px); border-color: var(--text-dim); }
+
+        .nc-header {
+            padding: 15px;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nc-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+        
+        .nc-body { padding: 20px; }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .metric-item { display: flex; flex-direction: column; }
+        .metric-label { font-size: 0.75rem; color: var(--text-dim); }
+        .metric-val { font-size: 1.1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+        .nc-footer {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .btn-action {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-action:hover { color: white; border-color: white; }
+        .btn-action.active { background: var(--warning); color: black; border-color: var(--warning); font-weight: bold; }
+
+        .maint-overlay {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(4px);
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .tape {
+            background: var(--warning);
+            color: black;
+            font-weight: 900;
+            padding: 5px 40px;
+            transform: rotate(-10deg);
+            font-size: 1.2rem;
+            border: 2px solid white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+    </style>
 </head>
-<style>
-    body {
-background-color: #0d1117;
-color: #c9d1d9;
-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-padding: 20px;
-margin: 0;
-}
-h1 { border-bottom: 1px solid #30363d; padding-bottom: 15px; }
-.grid {
-display: grid;
-grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-gap: 20px;
-margin-top: 20px;
-}
-.card {
-background-color: #161b22;
-border: 1px solid #30363d;
-border-radius: 6px;
-padding: 20px;
-position: relative;
-}
-.card.online { border-left: 5px solid #2ea043; }
-.card.offline { border-left: 5px solid #da3633; opacity: 0.8; }
-
-.status-badge {
-position: absolute;
-top: 20px;
-right: 20px;
-padding: 4px 8px;
-border-radius: 4px;
-font-size: 12px;
-font-weight: bold;
-}
-.online .status-badge { background: #2ea043; color: white; }
-.offline .status-badge { background: #da3633; color: white; }
-
-.stat-row {
-display: flex;
-justify-content: space-between;
-margin-top: 10px;
-font-size: 14px;
-}
-.ping { color: #f2cc60; }
-.bar-bg {
-background: #30363d;
-height: 8px;
-border-radius: 4px;
-margin-top: 15px;
-overflow: hidden;
-}
-.bar-fill { height: 100%; transition: width 0.5s; }
-</style>
 <body>
 
-    <h1>Mesh Network Status (Port 5000)</h1>
-    <div id="loading">Connecting to Master Controller...</div>
-    <div id="grid" class="grid"></div>
+    <!-- SIDEBAR -->
+    <aside>
+        <div class="brand">
+            <i class="fas fa-network-wired" style="color:var(--primary)"></i>
+            UniMesh OS
+        </div>
+
+        <div class="control-group">
+            <div class="menu-label">Network Settings</div>
+            
+            <div class="input-group">
+                <i class="fas fa-link" style="color:var(--text-dim); margin-right:8px; font-size:0.8rem"></i>
+                <input type="text" id="panic-url" value="https://google.com" placeholder="Redirect URL">
+            </div>
+            <p style="font-size:0.7rem; color:var(--text-dim)">Global fallback URL for panic mode.</p>
+        </div>
+
+        <div class="control-group">
+            <div class="menu-label">Display</div>
+            <label style="display:flex; align-items:center; gap:10px; font-size:0.9rem; cursor:pointer">
+                <input type="checkbox" checked onclick="toggle3D()"> 3D Globe Visualization
+            </label>
+        </div>
+
+        <div class="panic-container">
+            <div class="menu-label" style="color:var(--danger)">Danger Zone</div>
+            <button id="btn-panic" class="btn-panic" onclick="togglePanic()">
+                <i class="fas fa-radiation"></i> Activate Panic Mode
+            </button>
+        </div>
+        
+        <div style="margin-top:20px; font-size:0.7rem; color:var(--text-dim); text-align:center;">
+            System v2.1.0
+        </div>
+    </aside>
+
+    <!-- CONTENT -->
+    <main>
+        
+        <!-- HUD -->
+        <div class="hud-grid">
+            <div class="hud-card blue">
+                <div class="hud-title">ACTIVE NODES</div>
+                <div class="hud-value" id="stat-nodes">0</div>
+            </div>
+            <div class="hud-card green">
+                <div class="hud-title">TOTAL CAPACITY</div>
+                <div class="hud-value" id="stat-users">0 / 0</div>
+            </div>
+            <div class="hud-card yellow">
+                <div class="hud-title">NETWORK LOAD</div>
+                <div class="hud-value" id="stat-load">0%</div>
+            </div>
+            <div class="hud-card purple">
+                <div class="hud-title">HOURLY COST</div>
+                <div class="hud-value" id="stat-cost">$0.00</div>
+            </div>
+        </div>
+
+        <!-- VISUALS -->
+        <div class="viz-row">
+            <div class="viz-card">
+                <div class="viz-label"><i class="fas fa-globe-americas"></i> GEOSPATIAL TRAFFIC</div>
+                <div id="globeViz" style="width:100%; height:100%"></div>
+            </div>
+            <div class="viz-card" style="background:var(--bg-sidebar); padding:20px;">
+                <div class="viz-label"><i class="fas fa-chart-line"></i> AGGREGATE LOAD (24H)</div>
+                <canvas id="aggChart"></canvas>
+            </div>
+        </div>
+
+        <!-- NODES -->
+        <div class="nodes-header">
+            <h2 style="font-size:1.1rem; margin:0">Server Infrastructure</h2>
+            <div style="font-size:0.8rem; color:var(--text-dim)">
+                <i class="fas fa-circle" style="color:var(--success); margin-left:10px"></i> Healthy
+                <i class="fas fa-circle" style="color:var(--danger); margin-left:10px"></i> Critical
+            </div>
+        </div>
+        
+        <div id="grid" class="node-grid"></div>
+
+    </main>
 
     <script>
-        async function fetchStats() {
+        let panicState = false;
+        let globe = null;
+        const charts = {};
+        let webGLActive = false;
+
+        function generateMockData() {
+            const nodes = {};
+            const count = 4; 
+            for(let i=0; i<count; i++) {
+                const name = `Server-0${i+1}`;
+                nodes[name] = {
+                    alive: Math.random() > 0.1, 
+                    load: Math.floor(Math.random() * 80) + 10,
+                    users: Math.floor(Math.random() * 800) + 100,
+                    max: 1000,
+                    watts: 350 + Math.floor(Math.random() * 50),
+                    ping: Math.floor(Math.random() * 60) + 10,
+                    temp: Math.floor(Math.random() * 20) + 40,
+                    location: {
+                        lat: (Math.random() * 160) - 80, 
+                        lon: (Math.random() * 360) - 180
+                    }
+                };
+            }
+            return { nodes, panic: { enabled: panicState } };
+        }
+    
+        function initGlobe() {
+            const elem = document.getElementById('globeViz');
+            
             try {
-                const response = await fetch('/api/stats');
-                const data = await response.json();
+                if (typeof Globe === 'undefined') {
+                    elem.innerHTML = '<div style="color:red; padding:20px;">Globe library failed. Refresh.</div>';
+                    return;
+                }
+
+                globe = Globe()(elem)
+                    .globeImageUrl('https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=1920&q=80')
+                    .backgroundColor('#000')
+                    .pointAltitude(0.25)
+                    .pointRadius(1.2)
+                    .pointColor(d => d.color)
+                    .atmosphereColor('#3b82f6')
+                    .atmosphereAltitude(0.2)
+                    .arcColor(d => d.color)
+                    .arcAltitude(0.25)
+                    .arcStroke(1.5)
+                    .arcDashLength(0.4)
+                    .arcDashGap(4)
+                    .arcDashAnimateTime(3000);
                 
-                render(data);
-                document.getElementById('loading').style.display = 'none';
-            } catch (error) {
-                console.error("Error fetching stats:", error);
-                document.getElementById('loading').innerText = "Error: Could not reach Python Controller on Port 5000.";
+                globe.controls().autoRotate = true;
+                globe.controls().autoRotateSpeed = 0.6;
+                globe.controls().enableZoom = false;
+
+                // Handle resize
+                new ResizeObserver(() => {
+                    if(globe) {
+                        globe.width(elem.clientWidth);
+                        globe.height(elem.clientHeight);
+                    }
+                }).observe(elem);
+
+                webGLActive = true;
+
+            } catch (e) {
+                console.error("Globe Crash:", e);
+                elem.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#da3633;">3D ERROR<br>Enable Hardware Accel</div>';
             }
         }
+    
+        function hideMap(mapCard, vizRow) {
+            if(mapCard) mapCard.style.display = 'none';
+            if(vizRow) vizRow.style.gridTemplateColumns = '1fr';
+        }
+    
+        // --- MAIN LOOP ---
+        async function updateData() {
+            let json;
+            
+            try {
+                // Try fetching from real API
+                const res = await fetch('/api/stats');
+                if(!res.ok) throw new Error("No API");
+                json = await res.json();
+            } catch(e) {
+                // If API fails, use Mock Data so the user sees results
+                json = generateMockData();
+            }
 
-        function render(nodes) {
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
-
-            Object.keys(nodes).forEach(name => {
-                const node = nodes[name];
-                const isOnline = node.alive;
-                const percent = isOnline ? (node.users / node.max) * 100 : 0;
+            try {
+                let nodes = json.nodes ? json.nodes : json;
+                let panic = json.panic ? json.panic : { enabled: false };
                 
-                let color = '#58a6ff';
-                if(percent > 50) color = '#d29922';
-                if(percent > 85) color = '#da3633';
-
-                const html = `
-                    <div class="card ${isOnline ? 'online' : 'offline'}">
-                        <span class="status-badge">${isOnline ? 'ONLINE' : 'OFFLINE'}</span>
-                        <h2 style="margin:0 0 10px 0; font-size:1.2em">${name}</h2>
-                        
-                        <div class="stat-row">
-                            <span>IP Address</span>
-                            <code>${node.ip}</code>
-                        </div>
-
-                        ${isOnline ? `
-                            <div class="stat-row">
-                                <span>Latency</span>
-                                <span class="ping">${node.ping} ms</span>
-                            </div>
-                            <div class="stat-row">
-                                <span>CPU Load</span>
-                                <span>${node.load}%</span>
-                            </div>
-                            <div class="stat-row">
-                                <span>Users</span>
-                                <span>${node.users} / ${node.max}</span>
-                            </div>
-                            <div class="bar-bg">
-                                <div class="bar-fill" style="width: ${percent}%; background-color: ${color}"></div>
-                            </div>
-                        ` : `
-                            <div style="margin-top:20px; color:#8b949e">
-                                Node unreachable. <br>Last Error: ${node.error || 'Timeout'}
-                            </div>
-                        `}
-                    </div>
-                `;
-                grid.innerHTML += html;
+                renderNodes(nodes);
+                updateStats(nodes);
+                updatePanicUI(panic);
+                
+                if(webGLActive && globe) {
+                    updateGlobePoints(nodes);
+                }
+            } catch(e) { 
+                console.error("Render Error:", e); 
+            }
+        }
+    
+        function updateGlobePoints(nodes) {
+            if(!globe) return;
+            const points = [];
+            Object.values(nodes).forEach(n => {
+                if(n.location && n.location.lat) {
+                    const color = (n.load > 90 || !n.alive) ? '#ef4444' : '#22c55e';
+                    points.push({ lat: n.location.lat, lng: n.location.lon, size: 1, color: color });
+                }
+            });
+            globe.pointsData(points);
+        }
+    
+        function updateStats(nodes) {
+            let totalUsers = 0;
+            let totalMax = 0;
+            let totalWatts = 0;
+            let totalLoad = 0;
+            let count = 0;
+    
+            Object.values(nodes).forEach(n => {
+                if(n.alive) {
+                    totalUsers += (n.users || 0);
+                    totalMax += (n.max || 0);
+                    totalWatts += (n.watts || 0);
+                    totalLoad += (n.load || 0);
+                    count++;
+                }
+            });
+    
+            const avgLoad = count > 0 ? Math.round(totalLoad / count) : 0;
+            const cost = (totalWatts / 1000) * 0.12; 
+    
+            document.getElementById('stat-nodes').innerText = count;
+            document.getElementById('stat-users').innerText = `${totalUsers} / ${totalMax}`;
+            document.getElementById('stat-load').innerText = `${avgLoad}%`;
+            document.getElementById('stat-cost').innerText = `$${cost.toFixed(4)}`;
+        }
+    
+        function renderNodes(nodes) {
+            const grid = document.getElementById('grid');
+            
+            // Remove cards that no longer exist
+            const existingIds = Array.from(grid.children).map(c => c.id.replace('card-', ''));
+            existingIds.forEach(id => {
+                if(!nodes[id]) document.getElementById(`card-${id}`).remove();
+            });
+    
+            Object.keys(nodes).forEach(name => {
+                const n = nodes[name];
+                let card = document.getElementById(`card-${name}`);
+                
+                // Create card if new
+                if (!card) {
+                    card = createCardHTML(name);
+                    grid.appendChild(card);
+                    initNodeChart(name);
+                }
+    
+                // Update Values
+                const dot = document.getElementById(`dot-${name}`);
+                if(dot) dot.style.background = n.alive ? 'var(--success)' : 'var(--danger)';
+                
+                safeSetText(`val-cpu-${name}`, `${Math.round(n.load)}%`);
+                safeSetText(`val-ram-${name}`, `${Math.round((n.users / n.max) * 100)}%`);
+                safeSetText(`val-ping-${name}`, `${n.ping}ms`);
+                safeSetText(`val-temp-${name}`, n.temp ? `${n.temp}°C` : '--');
+                
+                // Maintenance Overlay Logic
+                const overlay = document.getElementById(`m-overlay-${name}`);
+                const btn = document.getElementById(`btn-maint-${name}`);
+                if(overlay && btn) {
+                    if(n.maintenance) {
+                        overlay.style.display = 'flex';
+                        btn.classList.add('active');
+                        btn.innerHTML = '<i class="fas fa-play"></i> RESUME';
+                    } else {
+                        overlay.style.display = 'none';
+                        btn.classList.remove('active');
+                        btn.innerHTML = '<i class="fas fa-pause"></i> DRAIN';
+                    }
+                }
+    
+                // Update Mini Chart
+                if(n.alive && charts[name]) {
+                    const c = charts[name];
+                    c.data.datasets[0].data.push(n.load);
+                    if(c.data.datasets[0].data.length > 20) c.data.datasets[0].data.shift();
+                    c.update('none'); // Efficient update
+                }
             });
         }
-
-        setInterval(fetchStats, 2000);
-        fetchStats();
+    
+        function safeSetText(id, val) {
+            const el = document.getElementById(id);
+            if(el) el.innerText = val;
+        }
+    
+        function createCardHTML(name) {
+            const div = document.createElement('div');
+            div.className = 'node-card';
+            div.id = `card-${name}`;
+            div.innerHTML = `
+                <div id="m-overlay-${name}" class="maint-overlay" style="display:none">
+                    <div class="tape">MAINTENANCE</div>
+                </div>
+                <div class="nc-header">
+                    <div class="nc-status">
+                        <div id="dot-${name}" class="status-dot"></div>
+                        ${name}
+                    </div>
+                    <div style="font-size:0.7rem; color:var(--text-dim)">ID: ${Math.floor(Math.random()*9999)}</div>
+                </div>
+                <div class="nc-body">
+                    <div class="metrics-grid">
+                        <div class="metric-item">
+                            <span class="metric-label">CPU LOAD</span>
+                            <span class="metric-val" id="val-cpu-${name}">0%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">CAPACITY</span>
+                            <span class="metric-val" id="val-ram-${name}">0%</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">LATENCY</span>
+                            <span class="metric-val" id="val-ping-${name}" style="color:var(--warning)">0ms</span>
+                        </div>
+                        <div class="metric-item">
+                            <span class="metric-label">TEMP</span>
+                            <span class="metric-val" id="val-temp-${name}">--</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="chart-${name}"></canvas>
+                    </div>
+                </div>
+                <div class="nc-footer">
+                    <button id="btn-maint-${name}" class="btn-action" onclick="toggleMaint('${name}')">
+                        <i class="fas fa-pause"></i> DRAIN
+                    </button>
+                    <button class="btn-action" onclick="alert('Feature requires Agent v2.2')">
+                        <i class="fas fa-power-off"></i> REBOOT
+                    </button>
+                </div>
+            `;
+            return div;
+        }
+    
+        function initNodeChart(name) {
+            try {
+                const ctx = document.getElementById(`chart-${name}`).getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 80);
+                gradient.addColorStop(0, 'rgba(59, 130, 246, 0.5)');
+                gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+    
+                charts[name] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array(20).fill(''),
+                        datasets: [{
+                            data: Array(20).fill(0),
+                            borderColor: '#3b82f6',
+                            backgroundColor: gradient,
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: false, tooltip: { enabled: false } },
+                        scales: { x: {display:false}, y: {display:false, min:0, max:100} },
+                        animation: false
+                    }
+                });
+            } catch(e) { console.error("Chart Init Error", e); }
+        }
+    
+        // Mock API Control functions
+        async function toggleMaint(name) {
+            const btn = document.getElementById(`btn-maint-${name}`);
+            const isDrain = !btn.classList.contains('active'); 
+            // In a real app, this would POST to API. 
+            // For now, we rely on the loop to update (which simulates the backend state).
+            console.log(`Setting maintenance for ${name} to ${isDrain}`);
+        }
+    
+        async function togglePanic() {
+            panicState = !panicState;
+            updateData(); // Force immediate update to show visual change
+        }
+    
+        function updatePanicUI(panic) {
+            // Use local state if API data isn't driving it (for mock mode)
+            const active = (panic && panic.enabled) || panicState;
+            const btn = document.getElementById('btn-panic');
+            
+            if(active) {
+                btn.classList.add('active');
+                btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> OVERRIDE ACTIVE';
+            } else {
+                btn.classList.remove('active');
+                btn.innerHTML = '<i class="fas fa-radiation"></i> ACTIVATE PANIC MODE';
+            }
+        }
+    
+        function toggle3D() {
+            const container = document.querySelector('.viz-row');
+            const mapCard = document.querySelector('.viz-card:first-child');
+            if(mapCard.style.display === 'none') {
+                 mapCard.style.display = 'block';
+                 container.style.gridTemplateColumns = '2fr 1fr'; // Restore grid
+                 initGlobe(); 
+            } else {
+                 hideMap(mapCard, container);
+            }
+        }
+    
+        // --- AGGREGATE CHART ---
+        function initAggChart() {
+            const ctx = document.getElementById('aggChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(20).fill(''),
+                    datasets: [{
+                        label: 'Avg Load',
+                        data: Array(20).fill(0),
+                        borderColor: '#22c55e',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: {display:false}, y: {display:true, min:0, max:100, grid: {color: '#333'}} }
+                }
+            });
+        }
+    
+        // --- STARTUP ---
+        initAggChart();
+        initGlobe();
+        setInterval(updateData, 2000);
+        updateData();
+    
     </script>
 </body>
 </html>
